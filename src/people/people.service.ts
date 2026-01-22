@@ -110,30 +110,30 @@ export class PeopleService {
 
     const legalCases = await Promise.all(
       people.map((person) =>
-        this.legalCases({ document: person.document.number }),
+        this.safeLegalCasesForExcel(person.document.number),
       ),
     );
 
-    const filteredLegalCases = legalCases.filter((person) => person.person);
+    const filteredLegalCases = legalCases.filter(
+      (person) => person && person.person,
+    );
 
-    const excelToSave = filteredLegalCases
-      .filter((person) => person)
-      .map((person) => {
-        if (!person.person) {
-          return;
-        }
-        return {
-          Nome: person.person.name,
-          Documento: person.person.document.number.replace(/\D/g, ''),
-          'Quantidade de processos': person.resume.casesCount,
-          'Quantidade de processos trabalhistas':
-            person.resume.trabalhistasCasesCount || 0,
-          'Quantidade de processos civis': person.resume.civelCasesCount || 0,
-          'Quantidade de processos federais':
-            person.resume.federalCasesCount || 0,
-          'Quantidade de processos outros': person.resume.otherCasesCount || 0,
-        };
-      });
+    const excelToSave = filteredLegalCases.map((person) => {
+      if (!person || !person.person) {
+        return;
+      }
+      return {
+        Nome: person.person.name,
+        Documento: person.person.document.number.replace(/\D/g, ''),
+        'Quantidade de processos': person.resume.casesCount,
+        'Quantidade de processos trabalhistas':
+          person.resume.trabalhistasCasesCount || 0,
+        'Quantidade de processos civis': person.resume.civelCasesCount || 0,
+        'Quantidade de processos federais':
+          person.resume.federalCasesCount || 0,
+        'Quantidade de processos outros': person.resume.otherCasesCount || 0,
+      };
+    });
 
     const excelBuffer = this.generateExcelFile(excelToSave);
 
@@ -232,5 +232,22 @@ export class PeopleService {
       });
     const data = response.data;
     return data;
+  }
+
+  private async safeLegalCasesForExcel(document: string) {
+    try {
+      return await this.legalCases({ document });
+    } catch (error: any) {
+      const message = error?.response?.data?.message || error?.message || '';
+
+      if (
+        message.toLowerCase().includes('saldo') ||
+        message.toLowerCase().includes('insuficiente')
+      ) {
+        return null;
+      }
+
+      throw error;
+    }
   }
 }
