@@ -3,6 +3,7 @@ import { PeopleModule } from './people/people.module';
 import { ConfigModule } from './config/config.module';
 import { RedisModule } from '@nestjs-modules/ioredis';
 import { ConfigService } from '@nestjs/config';
+import { CreditsModule } from './credits/credits.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { ConfigService } from '@nestjs/config';
         url: configService.getOrThrow<string>('REDIS_URL'),
       }),
     }),
+    CreditsModule,
   ],
 })
 export class AppModule {}
