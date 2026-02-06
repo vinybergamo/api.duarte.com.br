@@ -19,6 +19,18 @@ export class PeopleService {
     private readonly configService: ConfigService,
   ) {}
 
+  private get escavadorApi() {
+    return axios.create({
+      baseURL: this.configService.getOrThrow<string>('ESCAVADOR_BASE_URL'),
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${this.configService.getOrThrow<string>(
+          'ESCAVADOR_ACCESS_KEY',
+        )}`,
+      },
+    });
+  }
+
   async legalCases(legalCasesDto: any) {
     const data = await this.fetchLegalCases(legalCasesDto.document);
 
@@ -211,27 +223,35 @@ export class PeopleService {
   }
 
   private async getLegalCasesFromApi(document: string) {
-    const instance = axios.create({
-      baseURL: this.configService.getOrThrow<string>('ESCAVADOR_BASE_URL'),
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.configService.getOrThrow<string>(
-          'ESCAVADOR_ACCESS_KEY',
-        )}`,
-      },
-    });
-    const response = await instance
-      .get(`/v2/envolvido/processos`, {
+    try {
+      const response = await this.escavadorApi.get(`/v2/envolvido/processos`, {
         params: {
           cpf_cnpj: document,
           limit: 100,
         },
-      })
-      .catch((error) => {
-        throw new HttpException(error.response.data, error.response.status);
       });
-    const data = response.data;
-    return data;
+
+      let data = response.data;
+      let items = [...data.items];
+      let nextLink = data.links?.next;
+
+      while (nextLink) {
+        const nextResponse = await this.escavadorApi.get(nextLink);
+        const nextData = nextResponse.data;
+        items.push(...nextData.items);
+        nextLink = nextData.links?.next;
+      }
+
+      return {
+        envolvido_encontrado: data.envolvido_encontrado,
+        items,
+      };
+    } catch (error) {
+      throw new HttpException(
+        error?.response?.data || error?.message || 'Erro ao buscar processos',
+        error.response.status,
+      );
+    }
   }
 
   private async safeLegalCasesForExcel(document: string) {
